@@ -58,6 +58,11 @@ import {
   type SpawnSubagentMode,
   type SpawnSubagentSandboxMode,
 } from "./subagent-spawn.types.js";
+// Colony Patch 3: direct-exec imports.
+import { buildDockerExecArgs } from "./bash-tools.shared.js";
+import { resolveSandboxContext } from "./sandbox.js";
+import { execDocker } from "./sandbox/docker.js";
+import { DEFAULT_PATH } from "./bash-tools.exec-runtime.js";
 
 export { SUBAGENT_SPAWN_MODES, SUBAGENT_SPAWN_SANDBOX_MODES } from "./subagent-spawn.types.js";
 export type { SpawnSubagentMode, SpawnSubagentSandboxMode } from "./subagent-spawn.types.js";
@@ -100,6 +105,8 @@ export type SpawnSubagentParams = {
     mimeType?: string;
   }>;
   attachMountPath?: string;
+  /** Colony Patch 3: Command args for direct-exec sandbox mode (bypasses agent loop). */
+  execCommand?: string[];
 };
 
 export type SpawnSubagentContext = {
@@ -117,13 +124,19 @@ export type SpawnSubagentContext = {
 };
 
 export type SpawnSubagentResult = {
-  status: "accepted" | "forbidden" | "error";
+  status: "accepted" | "forbidden" | "error" | "ok";
   childSessionKey?: string;
   runId?: string;
   mode?: SpawnSubagentMode;
   note?: string;
   modelApplied?: boolean;
   error?: string;
+  /** Colony Patch 3: direct-exec result payload. */
+  directExec?: {
+    stdout?: string;
+    stderr?: string;
+    exitCode?: number;
+  };
   attachments?: {
     count: number;
     totalBytes: number;
@@ -282,6 +295,40 @@ function summarizeError(err: unknown): string {
   return "error";
 }
 
+/**
+ * Colony Patch 3: Run a command directly in the sandbox container, bypassing the agent loop.
+ * Used when execCommand is provided with sandbox=direct-exec.
+ */
+async function runDirectExecInSandbox(
+  params: SpawnSubagentParams,
+): Promise<SpawnSubagentResult> {
+  if (!params.execCommand || params.execCommand.length === 0) {
+    return { status: "error", error: "execCommand must be a non-empty array" };
+  }
+  try {
+    const { sandboxName, dockerWorkdir } = await resolveSandboxContext(
+      params.attachMountPath ?? DEFAULT_PATH,
+    );
+    const execArgs = buildDockerExecArgs(sandboxName, dockerWorkdir, params.execCommand);
+    const { stdout, stderr, exitCode } = await execDocker(execArgs, {
+      cwd: process.cwd(),
+    });
+    return {
+      status: "ok",
+      directExec: {
+        stdout: typeof stdout === "string" ? stdout : String(stdout),
+        stderr: typeof stderr === "string" ? stderr : String(stderr),
+        exitCode: typeof exitCode === "number" ? exitCode : undefined,
+      },
+    };
+  } catch (err: unknown) {
+    return {
+      status: "error",
+      error: `direct-exec failed: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+}
+
 async function ensureThreadBindingForSubagentSpawn(params: {
   hookRunner: SubagentLifecycleHookRunner | null;
   childSessionKey: string;
@@ -347,6 +394,10 @@ export async function spawnSubagentDirect(
   params: SpawnSubagentParams,
   ctx: SpawnSubagentContext,
 ): Promise<SpawnSubagentResult> {
+  // Colony Patch 3: early return for direct-exec mode (bypasses agent loop).
+  if (params.execCommand) {
+    return await runDirectExecInSandbox(params);
+  }
   const task = params.task;
   const label = params.label?.trim() || "";
   const requestedAgentId = params.agentId?.trim();

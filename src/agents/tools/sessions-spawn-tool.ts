@@ -20,7 +20,7 @@ import {
 } from "./sessions-helpers.js";
 
 const SESSIONS_SPAWN_RUNTIMES = ["subagent", "acp"] as const;
-const SESSIONS_SPAWN_SANDBOX_MODES = ["inherit", "require"] as const;
+const SESSIONS_SPAWN_SANDBOX_MODES = ["inherit", "require", "direct-exec"] as const;
 // Keep the schema local to avoid a circular import through acp-spawn/openclaw-tools.
 const SESSIONS_SPAWN_ACP_STREAM_TARGETS = ["parent"] as const;
 const UNSUPPORTED_SESSIONS_SPAWN_PARAM_KEYS = [
@@ -132,6 +132,10 @@ const SessionsSpawnToolSchema = Type.Object({
       mountPath: Type.Optional(Type.String()),
     }),
   ),
+  // Colony Patch 3: direct-exec command args (bypasses agent loop, runs in sandbox).
+  execCommand: Type.Optional(
+    Type.Array(Type.String(), { minItems: 1, maxItems: 32 }),
+  ),
 });
 
 export function createSessionsSpawnTool(
@@ -174,7 +178,10 @@ export function createSessionsSpawnTool(
       const cleanup =
         params.cleanup === "keep" || params.cleanup === "delete" ? params.cleanup : "keep";
       const expectsCompletionMessage = params.expectsCompletionMessage !== false;
-      const sandbox = params.sandbox === "require" ? "require" : "inherit";
+      const sandbox =
+        params.sandbox === "require" || params.sandbox === "direct-exec"
+          ? params.sandbox
+          : "inherit";
       const streamTo = params.streamTo === "parent" ? "parent" : undefined;
       const lightContext = params.lightContext === true;
       if (runtime === "acp" && lightContext) {
@@ -205,6 +212,25 @@ export function createSessionsSpawnTool(
         return jsonResult({
           status: "error",
           error: `streamTo is only supported for runtime=acp; got runtime=${runtime}`,
+        });
+      }
+
+      // Colony Patch 3: extract and validate execCommand for direct-exec.
+      const execCommand = Array.isArray(params.execCommand)
+        && params.execCommand.length > 0
+        && params.execCommand.every((s: unknown) => typeof s === "string")
+        ? (params.execCommand as string[])
+        : undefined;
+      if (execCommand && sandbox !== "direct-exec") {
+        return jsonResult({
+          status: "error",
+          error: "execCommand is only valid with sandbox=direct-exec",
+        });
+      }
+      if (!execCommand && sandbox === "direct-exec") {
+        return jsonResult({
+          status: "error",
+          error: "sandbox=direct-exec requires a non-empty execCommand array",
         });
       }
 
@@ -327,6 +353,8 @@ export function createSessionsSpawnTool(
             params.attachAs && typeof params.attachAs === "object"
               ? readStringParam(params.attachAs as Record<string, unknown>, "mountPath")
               : undefined,
+          // Colony Patch 3: pass execCommand for direct-exec sandbox mode.
+          execCommand,
         },
         {
           agentSessionKey: opts?.agentSessionKey,
