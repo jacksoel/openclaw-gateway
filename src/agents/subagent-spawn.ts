@@ -306,20 +306,24 @@ async function runDirectExecInSandbox(
     return { status: "error", error: "execCommand must be a non-empty array" };
   }
   try {
-    const { sandboxName, dockerWorkdir } = await resolveSandboxContext(
-      params.attachMountPath ?? DEFAULT_PATH,
-    );
-    const execArgs = buildDockerExecArgs(sandboxName, dockerWorkdir, params.execCommand);
-    const { stdout, stderr, exitCode } = await execDocker(execArgs, {
-      cwd: process.cwd(),
+    const ctx = await resolveSandboxContext({
+      workspaceDir: params.attachMountPath,
     });
+    if (!ctx) {
+      return { status: "error", error: "could not resolve sandbox context" };
+    }
+    const command = params.execCommand.join(" ");
+    const execArgs = buildDockerExecArgs({
+      containerName: ctx.containerName,
+      command,
+      workdir: ctx.containerWorkdir,
+      env: { PATH: DEFAULT_PATH },
+      tty: false,
+    });
+    const { stdout, stderr, code } = await execDocker(execArgs);
     return {
       status: "ok",
-      directExec: {
-        stdout: typeof stdout === "string" ? stdout : String(stdout),
-        stderr: typeof stderr === "string" ? stderr : String(stderr),
-        exitCode: typeof exitCode === "number" ? exitCode : undefined,
-      },
+      directExec: { stdout, stderr, exitCode: code },
     };
   } catch (err: unknown) {
     return {

@@ -7,6 +7,7 @@ import { optionalStringEnum } from "../schema/typebox.js";
 import type { SpawnedToolContext } from "../spawned-context.js";
 import { registerSubagentRun } from "../subagent-registry.js";
 import { SUBAGENT_SPAWN_MODES, spawnSubagentDirect } from "../subagent-spawn.js";
+import type { SpawnSubagentSandboxMode } from "../subagent-spawn.types.js";
 import {
   describeSessionsSpawnTool,
   SESSIONS_SPAWN_TOOL_DISPLAY_SUMMARY,
@@ -178,7 +179,7 @@ export function createSessionsSpawnTool(
       const cleanup =
         params.cleanup === "keep" || params.cleanup === "delete" ? params.cleanup : "keep";
       const expectsCompletionMessage = params.expectsCompletionMessage !== false;
-      const sandbox =
+      const sandbox: SpawnSubagentSandboxMode =
         params.sandbox === "require" || params.sandbox === "direct-exec"
           ? params.sandbox
           : "inherit";
@@ -259,7 +260,9 @@ export function createSessionsSpawnTool(
             cwd,
             mode: mode === "run" || mode === "session" ? mode : undefined,
             thread,
-            sandbox,
+            // Colony Patch 3: ACP doesn't support direct-exec; cast is safe because
+            // execCommand+direct-exec is rejected before reaching this branch for ACP.
+            sandbox: sandbox as "inherit" | "require" | undefined,
             streamTo,
           },
           {
