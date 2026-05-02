@@ -63,11 +63,25 @@ reads, shell commands) with minimal latency and token cost.
 
 ---
 
+## Rebase/Merge History
+
+- **v2026.4.15 → v2026.4.29** (May 2026): Merge via `git merge v2026.4.29`.
+  - Conflicts in `subagent-spawn.ts` (our `runDirectExecInSandbox` vs upstream's
+    `buildThreadBindingUnavailableError` — kept both, they are independent)
+  - Conflicts in `sessions-spawn-tool.ts` (schema + validation — combined colony
+    execCommand with upstream contextMode/lightContext/attachments additions)
+  - `subagent-spawn.types.ts` auto-merged: `"direct-exec"` in sandbox modes,
+    upstream added `SUBAGENT_SPAWN_CONTEXT_MODES` (`"isolated" | "fork"`)
+  - All colony imports verified: `buildDockerExecArgs`, `resolveSandboxContext`,
+    `execDocker`, `DEFAULT_PATH` all still export from same paths in v4.29
+  - Note: upstream added `contextMode` ("forked") as a separate dimension from
+    `sandboxMode`. Our `"direct-exec"` addition to sandboxMode coexists cleanly.
+
 ## Rebase Notes
 
-When rebasing onto a new upstream release:
+When merging onto a new upstream release:
 
-1. `COLONY-PATCHES.md` — Always keep (re-apply after rebase)
+1. `COLONY-PATCHES.md` — Always keep (re-apply after merge)
 2. Patch 1 (Clicky voice tools) — **Already upstreamed.** Do not re-apply.
 3. Patch 3 (execCommand) — May conflict if `subagent-spawn.ts`,
    `subagent-spawn.types.ts`, or `sessions-spawn-tool.ts` change
@@ -78,12 +92,13 @@ When rebasing onto a new upstream release:
    - `execDocker` import path (`./sandbox/docker.js`)
    - The `SpawnSubagentParams` and `SpawnSubagentResult` type definitions
    - The `SessionsSpawnToolSchema` TypeBox object
-4. The rebase approach is **rewrite-based**: create a fresh branch from
-   upstream main and cherry-pick/re-apply patches manually.
+4. Prefer **merge** over rebase to preserve history traceability.
+   Re-apply patches surgically when conflict resolution is needed.
 
 ## Branch Strategy
 
 - `main` branch on `jacksoel/openclaw-gateway`: mirrors upstream `main`
   (fast-forward only via `git reset --hard upstream/main`)
 - `colony` branch: based on `main`, contains all active colony patches
-- Force-push `colony` is acceptable (rewrite-based rebase workflow)
+- Force-push `colony` is acceptable (rewrite-based workflow)
+- Always merge (never rebase) colony onto upstream tags

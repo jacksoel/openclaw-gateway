@@ -7,8 +7,8 @@ import { emitSessionTranscriptUpdate } from "../../sessions/transcript-events.js
 import { normalizeLowercaseStringOrEmpty } from "../../shared/string-coerce.js";
 import { resolveAgentContextLimits } from "../agent-scope.js";
 import { acquireSessionWriteLock } from "../session-write-lock.js";
+import { formatContextLimitTruncationNotice } from "./context-truncation-notice.js";
 import { log } from "./logger.js";
-import { formatContextLimitTruncationNotice } from "./tool-result-context-guard.js";
 import { rewriteTranscriptEntriesInSessionManager } from "./transcript-rewrite.js";
 
 /**
@@ -288,13 +288,12 @@ export function truncateToolResultMessage(
       1,
       Math.min(maxChars, Math.max(minKeepChars + defaultSuffix.length, proportionalBudget)),
     );
-    return {
-      ...textBlock,
+    return Object.assign({}, textBlock, {
       text: truncateToolResultText(textBlock.text, blockBudget, {
         suffix: suffixFactory,
         minKeepChars,
       }),
-    };
+    });
   });
 
   return { ...msg, content: newContent } as AgentMessage;

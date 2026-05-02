@@ -8,7 +8,9 @@ type CodexJwtPayload = {
     email?: unknown;
   };
   "https://api.openai.com/auth"?: {
+    chatgpt_account_id?: unknown;
     chatgpt_account_user_id?: unknown;
+    chatgpt_plan_type?: unknown;
     chatgpt_user_id?: unknown;
     user_id?: unknown;
   };
@@ -66,23 +68,33 @@ export function resolveCodexAccessTokenExpiry(accessToken: string): number | und
 }
 
 export function resolveCodexAuthIdentity(params: { accessToken: string; email?: string | null }): {
+  accountId?: string;
+  chatgptPlanType?: string;
   email?: string;
   profileName?: string;
 } {
   const payload = decodeCodexJwtPayload(params.accessToken);
+  const auth = payload?.["https://api.openai.com/auth"];
+  const accountId = trimNonEmptyString(auth?.chatgpt_account_id);
+  const chatgptPlanType = trimNonEmptyString(auth?.chatgpt_plan_type);
   const email =
     trimNonEmptyString(payload?.["https://api.openai.com/profile"]?.email) ??
     trimNonEmptyString(params.email);
+  const metadata = {
+    ...(accountId ? { accountId } : {}),
+    ...(chatgptPlanType ? { chatgptPlanType } : {}),
+  };
   if (email) {
-    return { email, profileName: email };
+    return { ...metadata, email, profileName: email };
   }
 
   const stableSubject = resolveCodexStableSubject(payload);
   if (!stableSubject) {
-    return {};
+    return metadata;
   }
 
   return {
+    ...metadata,
     profileName: `id-${Buffer.from(stableSubject).toString("base64url")}`,
   };
 }
