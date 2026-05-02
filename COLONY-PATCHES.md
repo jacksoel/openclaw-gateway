@@ -63,6 +63,30 @@ reads, shell commands) with minimal latency and token cost.
 
 ---
 
+## Patch 4: Session Status Bare Agent ID Resolution
+
+**Status:** Active (committed post-merge on v4.29)
+**Commit:** `0413d89973`
+**Files changed:**
+- `src/agents/tools/session-status-tool.ts` (modified)
+- `src/agents/openclaw-tools.session-status.test.ts` (modified — test added)
+
+**Purpose:**
+Fixes `session_status` queries for bare multi-agent IDs (e.g.
+`"clawdbot514835"`) so they resolve to the named agent's main session
+(`agent:clawdbot514835:main`) instead of falling through to the
+DEFAULT_AGENT sub-key.
+
+**Implementation:**
+- Import `isValidAgentId` from `../../routing/session-key.js`
+- When `resolveSessionEntry` receives a bare key that is a valid agent ID
+  (not "current"/"global"/"unknown"), add `buildAgentMainSessionKey` as
+  a candidate for resolution
+- Test: verify `sessionKey: "clawdbot514835"` resolves to
+  `"agent:clawdbot514835:main"`
+
+---
+
 ## Rebase/Merge History
 
 - **v2026.4.15 → v2026.4.29** (May 2026): Merge via `git merge v2026.4.29`.
