@@ -17,6 +17,7 @@ import { resolveSessionModelIdentityRef } from "../../gateway/session-utils.js";
 import {
   buildAgentMainSessionKey,
   DEFAULT_AGENT_ID,
+  isValidAgentId,
   parseAgentSessionKey,
   resolveAgentIdFromSessionKey,
 } from "../../routing/session-key.js";
@@ -93,6 +94,23 @@ function resolveSessionEntry(params: {
   const candidates: string[] = [keyRaw];
   if (!keyRaw.startsWith("agent:")) {
     candidates.push(`agent:${DEFAULT_AGENT_ID}:${keyRaw}`);
+    // Bare valid agent id (e.g. "clawdbot514835") is not the default agent's sub-key; resolve to that agent's main session.
+    const normalizedBareKey = normalizeOptionalLowercaseString(keyRaw);
+    if (
+      isValidAgentId(keyRaw) &&
+      normalizedBareKey &&
+      normalizedBareKey !== "current" &&
+      normalizedBareKey !== "global" &&
+      normalizedBareKey !== "unknown"
+    ) {
+      const namedAgentMainKey = buildAgentMainSessionKey({
+        agentId: keyRaw,
+        mainKey: params.mainKey,
+      });
+      if (!candidates.includes(namedAgentMainKey)) {
+        candidates.push(namedAgentMainKey);
+      }
+    }
   }
   if (includeAliasFallback && internal !== keyRaw) {
     candidates.push(internal);

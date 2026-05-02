@@ -464,6 +464,22 @@ describe("session_status tool", () => {
     expect(updateSessionStoreMock).not.toHaveBeenCalled();
   });
 
+  it("resolves a bare multi-agent id sessionKey to that agent's main session", async () => {
+    resetSessionStore({
+      "agent:clawdbot514835:main": {
+        sessionId: "s-clawdbot",
+        updatedAt: 10,
+      },
+    });
+
+    const tool = getSessionStatusTool("agent:clawdbot514835:main");
+
+    const result = await tool.execute("call-bare-agent-id", { sessionKey: "clawdbot514835" });
+    const details = result.details as { ok?: boolean; sessionKey?: string };
+    expect(details.ok).toBe(true);
+    expect(details.sessionKey).toBe("agent:clawdbot514835:main");
+  });
+
   it("resolves sessionKey=current to the requester session", async () => {
     resetSessionStore({
       main: {
