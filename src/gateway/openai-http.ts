@@ -35,9 +35,11 @@ import {
 } from "./agent-prompt.js";
 import type { AuthRateLimiter } from "./auth-rate-limit.js";
 import type { ResolvedGatewayAuth } from "./auth.js";
+import { handleDirectChatCompletions } from "./direct-passthrough.js";
 import { sendJson, setSseHeaders, watchClientDisconnect, writeDone } from "./http-common.js";
 import { handleGatewayPostJsonEndpoint } from "./http-endpoint-helpers.js";
 import {
+  resolveDirectPassthroughModel,
   resolveGatewayRequestContext,
   resolveOpenAiCompatModelOverride,
   resolveOpenAiCompatibleHttpOperatorScopes,
@@ -541,6 +543,23 @@ export async function handleOpenAiHttpRequest(
   const senderIsOwner = resolveOpenAiCompatibleHttpSenderIsOwner(req, handled.requestAuth);
 
   const payload = coerceRequest(handled.body);
+
+  // Direct passthrough dispatch — bypasses the full agent pipeline for
+  // requests that carry x-openclaw-direct-model and are targeted at a
+  // known provider model. Falls through to the normal agent path when the
+  // header is absent, passthrough is disabled, or the model is unknown.
+  if (opts.config?.directPassthrough?.enabled) {
+    const directHandled = await handleDirectChatCompletions(req, res, payload);
+    if (directHandled) {
+      return true;
+    }
+    if (resolveDirectPassthroughModel(req)) {
+      logWarn(
+        "openai-compat: x-openclaw-direct-model set but direct passthrough did not handle the request (tools body, unknown model, empty provider text after extraction, etc.); continuing with agent pipeline",
+      );
+    }
+  }
+
   const stream = Boolean(payload.stream);
   const streamIncludeUsage = stream && resolveIncludeUsageForStreaming(payload);
   const model = typeof payload.model === "string" ? payload.model : "openclaw";

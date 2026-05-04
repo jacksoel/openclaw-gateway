@@ -246,6 +246,14 @@ export type GatewayHttpChatCompletionsConfig = {
   maxTotalImageBytes?: number;
   /** Image input controls for `image_url` parts. */
   images?: GatewayHttpChatCompletionsImagesConfig;
+  /**
+   * When enabled, requests with the `x-openclaw-direct-model` header bypass
+   * the full agent pipeline and stream directly from the resolved provider.
+   * Default: false when absent.
+   */
+  directPassthrough?: {
+    enabled?: boolean;
+  };
 };
 
 export type GatewayHttpChatCompletionsImagesConfig = {

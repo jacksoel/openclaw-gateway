@@ -165,3 +165,24 @@ export function resolveGatewayRequestContext(params: {
 
   return { agentId, sessionKey, messageChannel };
 }
+
+/**
+ * Resolve a direct provider passthrough model from the `x-openclaw-direct-model`
+ * header. Returns undefined when the header is missing or malformed.
+ */
+export function resolveDirectPassthroughModel(req: IncomingMessage):
+  | {
+      provider: string;
+      modelId: string;
+    }
+  | undefined {
+  const raw = getHeader(req, "x-openclaw-direct-model")?.trim();
+  if (!raw) {
+    return undefined;
+  }
+  const parsed = parseModelRef(raw, "openai");
+  if (!parsed) {
+    return undefined;
+  }
+  return { provider: parsed.provider, modelId: parsed.model };
+}

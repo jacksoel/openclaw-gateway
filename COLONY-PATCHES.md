@@ -12,6 +12,7 @@ upstream `main` and contains the following patches:
 **Upstreamed as:** `6512e554d` ("strip tools for Clicky voice companion sessions")
 **Status:** ✅ Merged into upstream. No colony-specific changes needed on rebase.
 **Files changed (original):**
+
 - `src/agents/clicky-voice-tools.ts` (new)
 - `src/agents/clicky-voice-tools.test.ts` (new)
 - `src/agents/pi-embedded-runner/compact.ts` (modified)
@@ -29,17 +30,19 @@ Already included in `v2026.4.15`. No colony-specific changes needed.
 
 **Status:** Active (re-applied on rebase)
 **Files changed:**
+
 - `src/agents/subagent-spawn.types.ts` (modified — added `"direct-exec"` to `SUBAGENT_SPAWN_SANDBOX_MODES`)
 - `src/agents/subagent-spawn.ts` (modified)
 - `src/agents/tools/sessions-spawn-tool.ts` (modified)
 
 **Purpose:**
 Allows spawning a subagent that directly executes a command in the
-sandbox container *without* running a full agent conversation loop. This
+sandbox container _without_ running a full agent conversation loop. This
 is used by Clicky's voice companion to run quick commands (e.g., file
 reads, shell commands) with minimal latency and token cost.
 
 **Implementation:**
+
 - `SpawnSubagentParams` gets an optional `execCommand: string[]` field
 - `SpawnSubagentResult.status` gains `"ok"` variant with `directExec`,
   `stdout`, `stderr`, `exitCode` fields
@@ -56,6 +59,7 @@ reads, shell commands) with minimal latency and token cost.
   `execCommand` requires `sandbox=direct-exec` and vice versa
 
 **Imports added to subagent-spawn.ts:**
+
 - `buildDockerExecArgs` from `./bash-tools.shared.js`
 - `resolveSandboxContext` from `./sandbox.js`
 - `execDocker` from `./sandbox/docker.js`
@@ -68,6 +72,7 @@ reads, shell commands) with minimal latency and token cost.
 **Status:** Active (committed post-merge on v4.29)
 **Commit:** `0413d89973`
 **Files changed:**
+
 - `src/agents/tools/session-status-tool.ts` (modified)
 - `src/agents/openclaw-tools.session-status.test.ts` (modified — test added)
 
@@ -78,12 +83,57 @@ Fixes `session_status` queries for bare multi-agent IDs (e.g.
 DEFAULT_AGENT sub-key.
 
 **Implementation:**
+
 - Import `isValidAgentId` from `../../routing/session-key.js`
 - When `resolveSessionEntry` receives a bare key that is a valid agent ID
   (not "current"/"global"/"unknown"), add `buildAgentMainSessionKey` as
   a candidate for resolution
 - Test: verify `sessionKey: "clawdbot514835"` resolves to
   `"agent:clawdbot514835:main"`
+
+---
+
+## Patch 5: Clicky Fast Path — Direct Provider Passthrough for `/v1/chat/completions`
+
+**Status:** Active (Colony-maintained until upstream adopts an equivalent.)
+
+**Purpose:** Lets Clicky (and other OpenAI-compat clients) send vision/chat
+completion requests without the full agent context pipeline when
+`gateway.http.endpoints.chatCompletions.directPassthrough.enabled` is `true`
+and the client sets header `x-openclaw-direct-model: <provider>/<modelId>`
+(e.g. `openai/gpt-5.4-mini`). Mitigates multi-minute latency / timeouts from
+heavy agent wrappers on simple multimodal turns.
+
+**Files:**
+
+- `src/gateway/direct-passthrough.ts` (new — OpenAI-format → pi-ai context, stream + non-stream)
+- `src/gateway/direct-passthrough.test.ts` (new)
+- `src/gateway/http-utils.ts` (`resolveDirectPassthroughModel`)
+- `src/gateway/openai-http.ts` (gate after JSON parse when config enabled)
+- `src/config/types.gateway.ts` (`GatewayHttpChatCompletionsConfig.directPassthrough`)
+- `src/config/zod-schema.ts` (same shape for `openclaw config validate`)
+
+Design reference: `~/.hermes/workspace/openclaw-gateway-review/PLAN-clicky-fast-path.md`
+
+Enable in `~/.openclaw/openclaw.json`:
+
+```json
+{
+  "gateway": {
+    "http": {
+      "endpoints": {
+        "chatCompletions": {
+          "enabled": true,
+          "directPassthrough": { "enabled": true }
+        }
+      }
+    }
+  }
+}
+```
+
+Client must send `x-openclaw-direct-model` on eligible requests (e.g. Clicky
+`ClaudeAPI.swift` when passthrough is turned on).
 
 ---
 
@@ -116,7 +166,11 @@ When merging onto a new upstream release:
    - `execDocker` import path (`./sandbox/docker.js`)
    - The `SpawnSubagentParams` and `SpawnSubagentResult` type definitions
    - The `SessionsSpawnToolSchema` TypeBox object
-4. Prefer **merge** over rebase to preserve history traceability.
+4. Patch 5 (direct chat passthrough) — Watch conflicts in
+   `src/gateway/openai-http.ts`, `src/gateway/http-utils.ts`, and
+   `src/config/zod-schema.ts` `chatCompletions` block. Reconcile
+   `direct-passthrough.ts` if provider transport APIs change.
+5. Prefer **merge** over rebase to preserve history traceability.
    Re-apply patches surgically when conflict resolution is needed.
 
 ## Branch Strategy
