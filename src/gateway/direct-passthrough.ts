@@ -10,7 +10,7 @@ import type {
 } from "@mariozechner/pi-ai";
 import * as piAi from "@mariozechner/pi-ai";
 import { applyLocalNoAuthHeaderOverride, getApiKeyForModel } from "../agents/model-auth.js";
-import { resolveModelAsync } from "../agents/pi-embedded-runner/model.js";
+import { resolveModelAsync } from "../agents/embedded-agent-runner/model.js";
 import { createBoundaryAwareStreamFnForModel } from "../agents/provider-transport-stream.js";
 import { prepareModelForSimpleCompletion } from "../agents/simple-completion-transport.js";
 import { loadConfig } from "../config/config.js";

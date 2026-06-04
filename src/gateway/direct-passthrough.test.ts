@@ -9,7 +9,7 @@ vi.mock("./http-utils.js", () => ({
   resolveDirectPassthroughModel: vi.fn(),
 }));
 
-vi.mock("../agents/pi-embedded-runner/model.js", () => ({
+vi.mock("../agents/embedded-agent-runner/model.js", () => ({
   resolveModelAsync: vi.fn(),
 }));
 
@@ -35,7 +35,7 @@ vi.mock("../logger.js", () => ({
 }));
 
 const { resolveDirectPassthroughModel } = await import("./http-utils.js");
-const { resolveModelAsync } = await import("../agents/pi-embedded-runner/model.js");
+const { resolveModelAsync } = await import("../agents/embedded-agent-runner/model.js");
 
 describe("direct passthrough", () => {
   let req: Partial<IncomingMessage>;
