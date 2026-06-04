@@ -30,11 +30,6 @@ import {
   markSubagentRecoveryWedged,
 } from "./subagent-recovery-state.js";
 import {
-  evaluateSubagentRecoveryGate,
-  markSubagentRecoveryAttempt,
-  markSubagentRecoveryWedged,
-} from "./subagent-recovery-state.js";
-import {
   finalizeInterruptedSubagentRun,
   replaceSubagentRunAfterSteer,
 } from "./subagent-registry-steer-runtime.js";
