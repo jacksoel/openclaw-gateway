@@ -1,19 +1,20 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
 import {
+  asFiniteNumber,
   normalizeLowercaseStringOrEmpty,
   normalizeOptionalString,
   normalizeSingleOrTrimmedStringList,
-} from "openclaw/plugin-sdk/text-runtime";
+} from "openclaw/plugin-sdk/string-coerce-runtime";
 import YAML from "yaml";
 
-export const WIKI_PAGE_KINDS = ["entity", "concept", "source", "synthesis", "report"] as const;
+const WIKI_PAGE_KINDS = ["entity", "concept", "source", "synthesis", "report"] as const;
 export const WIKI_RELATED_START_MARKER = "<!-- openclaw:wiki:related:start -->";
 export const WIKI_RELATED_END_MARKER = "<!-- openclaw:wiki:related:end -->";
 
 export type WikiPageKind = (typeof WIKI_PAGE_KINDS)[number];
 
-export type ParsedWikiMarkdown = {
+type ParsedWikiMarkdown = {
   frontmatter: Record<string, unknown>;
   body: string;
 };
@@ -39,7 +40,7 @@ export type WikiClaim = {
   updatedAt?: string;
 };
 
-export type WikiPersonCard = {
+type WikiPersonCard = {
   canonicalId?: string;
   handles: string[];
   socials: string[];
@@ -109,6 +110,11 @@ const RELATED_BLOCK_PATTERN = new RegExp(
 );
 const MAX_WIKI_SEGMENT_BYTES = 240;
 const MAX_WIKI_FILENAME_COMPONENT_BYTES = 255;
+const FS_SAFE_PINNED_WRITE_TEMP_SUFFIX = ".00000000-0000-4000-8000-000000000000.fallback.tmp";
+const MAX_WIKI_SAFE_WRITE_FILENAME_COMPONENT_BYTES =
+  MAX_WIKI_FILENAME_COMPONENT_BYTES -
+  Buffer.byteLength(FS_SAFE_PINNED_WRITE_TEMP_SUFFIX) -
+  Buffer.byteLength(".");
 const WIKI_SEGMENT_HASH_BYTES = 12;
 
 function truncateUtf8CodePointSafe(value: string, maxBytes: number): string {
@@ -152,7 +158,7 @@ export function createWikiPageFilename(stem: string, extension = ".md"): string 
   const normalizedExtension = extension.startsWith(".") ? extension : `.${extension}`;
   const maxStemBytes = Math.max(
     1,
-    MAX_WIKI_FILENAME_COMPONENT_BYTES - Buffer.byteLength(normalizedExtension),
+    MAX_WIKI_SAFE_WRITE_FILENAME_COMPONENT_BYTES - Buffer.byteLength(normalizedExtension),
   );
   return `${capWikiValueWithHash(stem, maxStemBytes, "page")}${normalizedExtension}`;
 }
@@ -180,7 +186,7 @@ export function renderWikiMarkdown(params: {
   return `---\n${frontmatter}\n---\n\n${params.body.trimStart()}`;
 }
 
-export function extractTitleFromMarkdown(body: string): string | undefined {
+function extractTitleFromMarkdown(body: string): string | undefined {
   const match = body.match(/^#\s+(.+?)\s*$/m);
   return normalizeOptionalString(match?.[1]);
 }
@@ -271,7 +277,7 @@ export function normalizeWikiClaims(value: unknown): WikiClaim[] {
 }
 
 function normalizeOptionalNumber(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+  return asFiniteNumber(value);
 }
 
 function normalizeWikiPersonCard(value: unknown): WikiPersonCard | undefined {
@@ -365,7 +371,7 @@ function normalizeWikiRelationships(value: unknown): WikiRelationship[] {
   });
 }
 
-export function extractWikiLinks(markdown: string): string[] {
+function extractWikiLinks(markdown: string): string[] {
   const searchable = markdown.replace(RELATED_BLOCK_PATTERN, "");
   const links: string[] = [];
   for (const match of searchable.matchAll(OBSIDIAN_LINK_PATTERN)) {

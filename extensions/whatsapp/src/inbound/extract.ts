@@ -1,11 +1,8 @@
-import type { proto } from "@whiskeysockets/baileys";
-import {
-  extractMessageContent,
-  getContentType,
-  normalizeMessageContent,
-} from "@whiskeysockets/baileys";
+import type { proto } from "baileys";
+import { extractMessageContent, getContentType, normalizeMessageContent } from "baileys";
 import { formatLocationText, type NormalizedLocation } from "openclaw/plugin-sdk/channel-inbound";
 import { logVerbose } from "openclaw/plugin-sdk/runtime-env";
+import { uniqueStrings } from "openclaw/plugin-sdk/string-coerce-runtime";
 import { resolveComparableIdentity, type WhatsAppReplyContext } from "../identity.js";
 import { jidToE164 } from "../text-runtime.js";
 import { parseVcard } from "../vcard.js";
@@ -197,7 +194,9 @@ function extractContextInfoFromMessage(message: proto.IMessage): proto.IContextI
   return undefined;
 }
 
-function extractContextInfo(message: proto.IMessage | undefined): proto.IContextInfo | undefined {
+export function extractContextInfo(
+  message: proto.IMessage | undefined,
+): proto.IContextInfo | undefined {
   for (const candidate of buildMessageChain(message)) {
     const contextInfo = extractContextInfoFromMessage(candidate);
     if (contextInfo) {
@@ -228,7 +227,7 @@ export function extractMentionedJids(rawMessage: proto.IMessage | undefined): st
   if (flattened.length === 0) {
     return undefined;
   }
-  return Array.from(new Set(flattened));
+  return uniqueStrings(flattened);
 }
 
 export function extractText(rawMessage: proto.IMessage | undefined): string | undefined {

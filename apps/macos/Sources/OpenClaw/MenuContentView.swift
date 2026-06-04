@@ -18,7 +18,6 @@ struct MenuContent: View {
     private let nodesStore = NodesStore.shared
     @Bindable private var pairingPrompter = NodePairingApprovalPrompter.shared
     @Bindable private var devicePairingPrompter = DevicePairingApprovalPrompter.shared
-    @Environment(\.openSettings) private var openSettings
     @State private var availableMics: [AudioInputDevice] = []
     @State private var loadingMics = false
     @State private var micObserver = AudioInputDeviceObserver()
@@ -112,31 +111,18 @@ struct MenuContent: View {
             }
             Divider()
             Button {
-                Task { @MainActor in
-                    await self.openDashboard()
-                }
+                AppNavigationActions.openDashboard()
             } label: {
                 Label("Open Dashboard", systemImage: "gauge")
             }
             Button {
-                Task { @MainActor in
-                    let sessionKey = await WebChatManager.shared.preferredSessionKey()
-                    WebChatManager.shared.show(sessionKey: sessionKey)
-                }
+                AppNavigationActions.openChat()
             } label: {
                 Label("Open Chat", systemImage: "bubble.left.and.bubble.right")
             }
             if self.state.canvasEnabled {
                 Button {
-                    Task { @MainActor in
-                        if self.state.canvasPanelVisible {
-                            CanvasManager.shared.hideAll()
-                        } else {
-                            let sessionKey = await GatewayConnection.shared.mainSessionKey()
-                            // Don't force a navigation on re-open: preserve the current web view state.
-                            _ = try? CanvasManager.shared.show(sessionKey: sessionKey, path: nil)
-                        }
-                    }
+                    AppNavigationActions.toggleCanvas()
                 } label: {
                     Label(
                         self.state.canvasPanelVisible ? "Close Canvas" : "Open Canvas",
@@ -185,9 +171,6 @@ struct MenuContent: View {
             self.micRefreshTask?.cancel()
             self.micRefreshTask = nil
             self.micObserver.stop()
-        }
-        .task { @MainActor in
-            SettingsWindowOpener.shared.register(openSettings: self.openSettings)
         }
     }
 
@@ -334,26 +317,32 @@ struct MenuContent: View {
     }
 
     private func open(tab: SettingsTab) {
-        SettingsTabRouter.request(tab)
-        NSApp.activate(ignoringOtherApps: true)
-        self.openSettings()
-        DispatchQueue.main.async {
-            NotificationCenter.default.post(name: .openclawSelectSettingsTab, object: tab)
-        }
+        AppNavigationActions.openSettings(tab: tab)
     }
 
-    @MainActor
-    private func openDashboard() async {
-        do {
-            let config = try await GatewayEndpointStore.shared.requireConfig()
-            let url = try GatewayEndpointStore.dashboardURL(for: config, mode: self.state.connectionMode)
-            NSWorkspace.shared.open(url)
-        } catch {
-            let alert = NSAlert()
-            alert.messageText = "Dashboard unavailable"
-            alert.informativeText = error.localizedDescription
-            alert.runModal()
+    private var macNodeStatus: (label: String, color: Color)? {
+        guard self.state.connectionMode != .unconfigured else { return nil }
+        guard case .connected = self.controlChannel.state else { return nil }
+
+        let deviceId = DeviceIdentityStore.loadOrCreate().deviceId
+        if let entry = self.nodesStore.nodes.first(where: { $0.nodeId == deviceId }) {
+            guard entry.isConnected else {
+                return ("Mac capabilities offline", .orange)
+            }
+            let commands = Set(entry.commands ?? [])
+            let missingRequiredCommands = [
+                OpenClawSystemCommand.notify.rawValue,
+                OpenClawSystemCommand.run.rawValue,
+                OpenClawSystemCommand.which.rawValue,
+            ].filter { !commands.contains($0) }
+            if !missingRequiredCommands.isEmpty {
+                return ("Mac capabilities incomplete", .orange)
+            }
+            return nil
         }
+
+        guard !self.nodesStore.isLoading, !self.nodesStore.nodes.isEmpty else { return nil }
+        return ("Mac capabilities offline", .orange)
     }
 
     private var macNodeStatus: (label: String, color: Color)? {

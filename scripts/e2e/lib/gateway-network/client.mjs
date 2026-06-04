@@ -1,6 +1,7 @@
 import { WebSocket } from "ws";
-
-const PROTOCOL_VERSION = 3;
+import { PROTOCOL_VERSION } from "../../../../dist/gateway/protocol/index.js";
+import { waitForWebSocketOpen } from "../websocket-open.mjs";
+import { readGatewayNetworkClientConnectTimeoutMs } from "./limits.mjs";
 
 const url = process.env.GW_URL;
 const token = process.env.GW_TOKEN;
@@ -8,18 +9,24 @@ if (!url || !token) {
   throw new Error("missing GW_URL/GW_TOKEN");
 }
 
-const ws = new WebSocket(url);
-await new Promise((resolve, reject) => {
-  const timer = setTimeout(() => reject(new Error("ws open timeout")), 30_000);
-  ws.once("open", () => {
-    clearTimeout(timer);
-    resolve();
-  });
-});
+const deadline = Date.now() + readGatewayNetworkClientConnectTimeoutMs();
 
-function onceFrame(filter, timeoutMs = 30_000) {
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function openSocket(timeoutMs = 10_000) {
+  const ws = new WebSocket(url);
+  await waitForWebSocketOpen(ws, timeoutMs, "ws open timeout");
+  return ws;
+}
+
+function onceFrame(ws, filter, timeoutMs = 10_000) {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("timeout")), timeoutMs);
+    const timer = setTimeout(() => {
+      ws.off("message", handler);
+      reject(new Error("timeout"));
+    }, timeoutMs);
     const handler = (data) => {
       const obj = JSON.parse(String(data));
       if (!filter(obj)) {
@@ -33,31 +40,67 @@ function onceFrame(filter, timeoutMs = 30_000) {
   });
 }
 
-ws.send(
-  JSON.stringify({
-    type: "req",
-    id: "c1",
-    method: "connect",
-    params: {
-      minProtocol: PROTOCOL_VERSION,
-      maxProtocol: PROTOCOL_VERSION,
-      client: {
-        id: "test",
-        displayName: "docker-net-e2e",
-        version: "dev",
-        platform: process.platform,
-        mode: "test",
-      },
-      caps: [],
-      auth: { token },
-    },
-  }),
-);
+let lastError;
+while (Date.now() < deadline) {
+  let ws;
+  try {
+    ws = await openSocket();
+    ws.send(
+      JSON.stringify({
+        type: "req",
+        id: "c1",
+        method: "connect",
+        params: {
+          minProtocol: PROTOCOL_VERSION,
+          maxProtocol: PROTOCOL_VERSION,
+          client: {
+            id: "test",
+            displayName: "docker-net-e2e",
+            version: "dev",
+            platform: process.platform,
+            mode: "test",
+          },
+          caps: [],
+          auth: { token },
+        },
+      }),
+    );
 
-const connectRes = await onceFrame((frame) => frame?.type === "res" && frame?.id === "c1");
-if (!connectRes.ok) {
-  throw new Error(`connect failed: ${connectRes.error?.message ?? "unknown"}`);
+    const connectRes = await onceFrame(ws, (frame) => frame?.type === "res" && frame?.id === "c1");
+    if (connectRes.ok) {
+      ws.close();
+      console.log("ok");
+      process.exit(0);
+    }
+
+    const message = connectRes.error?.message ?? "unknown";
+    lastError = new Error(`connect failed: ${message}`);
+    if (
+      !message.includes("gateway starting") &&
+      !message.includes("ws open timeout") &&
+      !message.includes("ECONNREFUSED") &&
+      !message.includes("ECONNRESET") &&
+      !message.includes("timeout")
+    ) {
+      throw lastError;
+    }
+  } catch (error) {
+    lastError = error instanceof Error ? error : new Error(String(error));
+    const message = lastError.message;
+    if (
+      !message.includes("gateway starting") &&
+      !message.includes("ws open timeout") &&
+      !message.includes("ECONNREFUSED") &&
+      !message.includes("ECONNRESET") &&
+      !message.includes("timeout")
+    ) {
+      throw lastError;
+    }
+  } finally {
+    ws?.close();
+  }
+
+  await delay(500);
 }
 
-ws.close();
-console.log("ok");
+throw lastError ?? new Error("connect failed: timeout");

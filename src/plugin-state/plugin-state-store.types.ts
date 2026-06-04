@@ -7,6 +7,7 @@ export type PluginStateEntry<T> = {
 
 export type PluginStateKeyedStore<T> = {
   register(key: string, value: T, opts?: { ttlMs?: number }): Promise<void>;
+  registerIfAbsent(key: string, value: T, opts?: { ttlMs?: number }): Promise<boolean>;
   lookup(key: string): Promise<T | undefined>;
   consume(key: string): Promise<T | undefined>;
   delete(key: string): Promise<boolean>;
@@ -14,10 +15,21 @@ export type PluginStateKeyedStore<T> = {
   clear(): Promise<void>;
 };
 
+export type PluginStateSyncKeyedStore<T> = {
+  register(key: string, value: T, opts?: { ttlMs?: number }): void;
+  registerIfAbsent(key: string, value: T, opts?: { ttlMs?: number }): boolean;
+  lookup(key: string): T | undefined;
+  consume(key: string): T | undefined;
+  delete(key: string): boolean;
+  entries(): PluginStateEntry<T>[];
+  clear(): void;
+};
+
 export type OpenKeyedStoreOptions = {
   namespace: string;
   maxEntries: number;
   defaultTtlMs?: number;
+  env?: NodeJS.ProcessEnv;
 };
 
 export type PluginStateStoreErrorCode =

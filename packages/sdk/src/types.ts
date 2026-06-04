@@ -28,7 +28,7 @@ export type ConnectableOpenClawTransport = OpenClawTransport & {
 
 export type RuntimeSelection =
   | "auto"
-  | { type: "embedded"; id: "pi" | "codex" | (string & {}) }
+  | { type: "embedded"; id: "openclaw" | "codex" | (string & {}) }
   | { type: "cli"; id: "claude-cli" | (string & {}) }
   | { type: "acp"; harness: "claude" | "cursor" | "gemini" | "opencode" | (string & {}) }
   | { type: "managed"; provider: "local" | "node" | "testbox" | "cloud" | (string & {}) };
@@ -39,6 +39,18 @@ export type EnvironmentSelection =
   | { type: "node"; nodeId: string; cwd?: string }
   | { type: "managed"; provider: string; repo?: string; ref?: string }
   | { type: "ephemeral"; provider: string; repo?: string; ref?: string };
+
+export type EnvironmentSummary = {
+  id: string;
+  type: "local" | "gateway" | "node" | "managed" | "ephemeral" | (string & {});
+  label?: string;
+  status: "available" | "unavailable" | "starting" | "stopping" | "error";
+  capabilities?: string[];
+};
+
+export type EnvironmentsListResult = {
+  environments: EnvironmentSummary[];
+};
 
 export type WorkspaceSelection = {
   cwd?: string;
@@ -62,7 +74,9 @@ export type SDKMessage = {
 export type ArtifactSummary = {
   id: string;
   runId?: string;
+  taskId?: string;
   sessionId?: string;
+  sessionKey?: string;
   type:
     | "file"
     | "patch"
@@ -77,14 +91,107 @@ export type ArtifactSummary = {
   title?: string;
   mimeType?: string;
   sizeBytes?: number;
+  messageSeq?: number;
+  source?: string;
+  download?: {
+    mode: "bytes" | "url" | "unsupported" | (string & {});
+  };
   createdAt?: string;
   expiresAt?: string;
+};
+
+export type ArtifactQuery =
+  | { sessionKey: string; runId?: string; taskId?: string; agentId?: string }
+  | { runId: string; sessionKey?: string; taskId?: string; agentId?: string }
+  | { taskId: string; sessionKey?: string; runId?: string; agentId?: string };
+
+export type ArtifactsListResult = {
+  artifacts: ArtifactSummary[];
+};
+
+export type ArtifactsGetResult = {
+  artifact: ArtifactSummary;
+};
+
+export type ArtifactsDownloadResult = {
+  artifact: ArtifactSummary;
+  encoding?: "base64";
+  data?: string;
+  url?: string;
+};
+
+export type TaskStatus = "queued" | "running" | "completed" | "failed" | "cancelled" | "timed_out";
+
+export type TaskSummary = {
+  id: string;
+  taskId?: string;
+  kind?: string;
+  runtime?: string;
+  status: TaskStatus;
+  title?: string;
+  agentId?: string;
+  sessionKey?: string;
+  childSessionKey?: string;
+  ownerKey?: string;
+  runId?: string;
+  flowId?: string;
+  parentTaskId?: string;
+  sourceId?: string;
+  createdAt?: RunTimestamp;
+  updatedAt?: RunTimestamp;
+  startedAt?: RunTimestamp;
+  endedAt?: RunTimestamp;
+  progressSummary?: string;
+  terminalSummary?: string;
+  error?: string;
+};
+
+export type TasksListParams = {
+  status?: TaskStatus | TaskStatus[];
+  agentId?: string;
+  sessionKey?: string;
+  limit?: number;
+  cursor?: string;
+};
+
+export type TasksListResult = {
+  tasks: TaskSummary[];
+  nextCursor?: string;
+};
+
+export type TasksGetResult = {
+  task: TaskSummary;
+};
+
+export type TasksCancelResult = {
+  found: boolean;
+  cancelled: boolean;
+  reason?: string;
+  task?: TaskSummary;
 };
 
 export type SDKError = {
   code?: string;
   message: string;
   details?: unknown;
+};
+
+export type ToolInvokeParams = {
+  args?: JsonObject;
+  sessionKey?: string;
+  agentId?: string;
+  confirm?: boolean;
+  idempotencyKey?: string;
+};
+
+export type ToolInvokeResult = {
+  ok: boolean;
+  toolName: string;
+  output?: unknown;
+  requiresApproval?: boolean;
+  approvalId?: string;
+  source?: string;
+  error?: SDKError;
 };
 
 export type RunResult = {

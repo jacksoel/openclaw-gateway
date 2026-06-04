@@ -1,3 +1,4 @@
+import { parseStrictPositiveInteger } from "openclaw/plugin-sdk/number-runtime";
 import { trimNonEmptyString } from "./openai-codex-shared.js";
 
 type CodexJwtPayload = {
@@ -20,13 +21,13 @@ function normalizeFutureEpochSeconds(value: unknown): number | undefined {
   if (typeof value === "number" && Number.isFinite(value) && value > 0) {
     return Math.trunc(value);
   }
-  if (typeof value === "string" && /^\d+$/.test(value.trim())) {
-    return Number.parseInt(value.trim(), 10);
+  if (typeof value === "string") {
+    return parseStrictPositiveInteger(value);
   }
   return undefined;
 }
 
-export function decodeCodexJwtPayload(accessToken: string): CodexJwtPayload | null {
+function decodeCodexJwtPayload(accessToken: string): CodexJwtPayload | null {
   const parts = accessToken.split(".");
   if (parts.length !== 3) {
     return null;
@@ -41,7 +42,7 @@ export function decodeCodexJwtPayload(accessToken: string): CodexJwtPayload | nu
   }
 }
 
-export function resolveCodexStableSubject(payload: CodexJwtPayload | null): string | undefined {
+function resolveCodexStableSubject(payload: CodexJwtPayload | null): string | undefined {
   const auth = payload?.["https://api.openai.com/auth"];
   const accountUserId = trimNonEmptyString(auth?.chatgpt_account_user_id);
   if (accountUserId) {

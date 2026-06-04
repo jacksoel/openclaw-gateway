@@ -6,6 +6,12 @@ import { resolveCliStartupPolicy } from "./command-startup-policy.js";
 
 type CliStartupPolicy = ReturnType<typeof resolveCliStartupPolicy>;
 
+const hasJsonFlag = (argv: readonly string[]) =>
+  argv.some((arg) => arg === "--json" || arg.startsWith("--json="));
+
+const hasVersionFlag = (argv: readonly string[]) =>
+  argv.some((arg) => arg === "--version" || arg === "-V");
+
 export function resolveCliExecutionStartupContext(params: {
   argv: string[];
   jsonOutputMode: boolean;
@@ -40,6 +46,9 @@ export async function applyCliExecutionStartupPresentation(params: {
   if (params.startupPolicy.hideBanner || params.showBanner === false || !params.version) {
     return;
   }
+  if (params.argv && (hasJsonFlag(params.argv) || hasVersionFlag(params.argv))) {
+    return;
+  }
   const { emitCliBanner } = await import("./banner.js");
   if (params.argv) {
     emitCliBanner(params.version, { argv: params.argv });
@@ -62,6 +71,7 @@ export async function ensureCliExecutionBootstrap(params: {
     suppressDoctorStdout: params.startupPolicy.suppressDoctorStdout,
     allowInvalid: params.allowInvalid,
     loadPlugins: params.loadPlugins ?? params.startupPolicy.loadPlugins,
+    pluginRegistry: params.startupPolicy.pluginRegistry,
     skipConfigGuard: params.skipConfigGuard ?? params.startupPolicy.skipConfigGuard,
   });
 }

@@ -6,8 +6,24 @@ export type {
 export type { AuthProfileEligibilityReasonCode } from "./auth-profiles/order.js";
 export { resolveAuthProfileDisplayLabel } from "./auth-profiles/display.js";
 export { formatAuthDoctorHint } from "./auth-profiles/doctor.js";
-export { resolveApiKeyForProfile } from "./auth-profiles/oauth.js";
-export { resolveAuthProfileEligibility, resolveAuthProfileOrder } from "./auth-profiles/order.js";
+export {
+  externalCliDiscoveryExisting,
+  externalCliDiscoveryForConfigStatus,
+  externalCliDiscoveryForProviderAuth,
+  externalCliDiscoveryForProviders,
+  externalCliDiscoveryNone,
+  externalCliDiscoveryScoped,
+  type ExternalCliAuthDiscovery,
+} from "./auth-profiles/external-cli-discovery.js";
+export {
+  refreshOAuthCredentialForRuntime,
+  resolveApiKeyForProfile,
+} from "./auth-profiles/oauth.js";
+export {
+  isConfiguredAwsSdkAuthProfileForProvider,
+  resolveAuthProfileEligibility,
+  resolveAuthProfileOrder,
+} from "./auth-profiles/order.js";
 export {
   resolveAuthStatePathForDisplay,
   resolveAuthStorePathForDisplay,
@@ -15,7 +31,8 @@ export {
 export {
   dedupeProfileIds,
   listProfilesForProvider,
-  markAuthProfileGood,
+  markAuthProfileSuccess,
+  removeProviderAuthProfilesWithLock,
   setAuthProfileOrder,
   upsertAuthProfile,
   upsertAuthProfileWithLock,
@@ -35,6 +52,7 @@ export {
   clearRuntimeAuthProfileStoreSnapshots,
   ensureAuthProfileStore,
   ensureAuthProfileStoreWithoutExternalProfiles,
+  getRuntimeAuthProfileStoreSnapshot,
   hasAnyAuthProfileStoreSource,
   loadAuthProfileStoreForSecretsRuntime,
   loadAuthProfileStoreWithoutExternalProfiles,
@@ -47,6 +65,8 @@ export {
 } from "./auth-profiles/store.js";
 export type {
   ApiKeyCredential,
+  AuthProfileBlockedReason,
+  AuthProfileBlockedSource,
   AuthProfileCredential,
   AuthProfileFailureReason,
   AuthProfileIdRepairResult,
@@ -63,8 +83,9 @@ export {
   getSoonestCooldownExpiry,
   isProfileInCooldown,
   markAuthProfileCooldown,
+  markAuthProfileBlockedUntil,
   markAuthProfileFailure,
-  markAuthProfileUsed,
   resolveProfilesUnavailableReason,
   resolveProfileUnusableUntilForDisplay,
+  setAuthProfileFailureHook,
 } from "./auth-profiles/usage.js";

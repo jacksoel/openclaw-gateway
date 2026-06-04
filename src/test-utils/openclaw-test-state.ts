@@ -1,15 +1,17 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { uniqueStrings } from "../shared/string-normalization.js";
 import { captureEnv } from "./env.js";
 import { cleanupSessionStateForTest } from "./session-state-cleanup.js";
 
-export type OpenClawTestStateLayout = "home" | "state-only" | "split";
+type OpenClawTestStateLayout = "home" | "state-only" | "split";
 
-export type OpenClawTestStateScenario =
+type OpenClawTestStateScenario =
   | "empty"
   | "minimal"
   | "update-stable"
+  | "upgrade-survivor"
   | "gateway-loopback"
   | "external-service";
 
@@ -58,7 +60,6 @@ const ENV_KEYS = [
   "OPENCLAW_STATE_DIR",
   "OPENCLAW_CONFIG_PATH",
   "OPENCLAW_AGENT_DIR",
-  "PI_CODING_AGENT_DIR",
   "OPENCLAW_SERVICE_REPAIR_POLICY",
 ] as const;
 
@@ -133,6 +134,33 @@ function scenarioConfig(options: OpenClawTestStateOptions): Record<string, unkno
       plugins: {},
     };
   }
+  if (scenario === "upgrade-survivor") {
+    return {
+      update: {
+        channel: "stable",
+      },
+      gateway: {
+        port: options.gateway?.port ?? 18789,
+        bind: "loopback",
+        auth: {
+          mode: "token",
+          token: options.gateway?.token ?? "openclaw-test-token",
+        },
+        controlUi: {
+          enabled: false,
+        },
+      },
+      plugins: {
+        enabled: true,
+        allow: ["discord", "telegram", "whatsapp", "memory"],
+        entries: {
+          discord: { enabled: true },
+          telegram: { enabled: true },
+          whatsapp: { enabled: true },
+        },
+      },
+    };
+  }
   if (scenario === "gateway-loopback") {
     return {
       gateway: {
@@ -173,11 +201,9 @@ function buildEnvVars(params: {
     params.agentEnv === "main"
       ? {
           OPENCLAW_AGENT_DIR: params.agentDir,
-          PI_CODING_AGENT_DIR: params.agentDir,
         }
       : {
           OPENCLAW_AGENT_DIR: undefined,
-          PI_CODING_AGENT_DIR: undefined,
         };
   const envVars: Record<string, string | undefined> = {
     OPENCLAW_STATE_DIR: params.stateDir,
@@ -247,7 +273,7 @@ export async function createOpenClawTestState(
     extraEnv: options.env ?? {},
   });
   const env = createSpawnEnv(envVars);
-  const snapshot = captureEnv([...new Set([...ENV_KEYS, ...Object.keys(envVars)])]);
+  const snapshot = captureEnv(uniqueStrings([...ENV_KEYS, ...Object.keys(envVars)]));
   let envApplied = false;
   let cleaned = false;
   const agentDir = (agentId = "main") => path.join(paths.stateDir, "agents", agentId, "agent");

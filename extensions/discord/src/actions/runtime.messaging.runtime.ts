@@ -5,6 +5,9 @@ import {
   createThreadDiscord,
   deleteMessageDiscord,
   editMessageDiscord,
+  editChannelDiscord,
+  fetchChannelInfoDiscord,
+  fetchGuildInfoDiscord,
   fetchChannelPermissionsDiscord,
   fetchMessageDiscord,
   fetchReactionsDiscord,
@@ -28,7 +31,10 @@ import { resolveDiscordChannelId } from "../targets.js";
 export const discordMessagingActionRuntime = {
   createThreadDiscord,
   deleteMessageDiscord,
+  editChannelDiscord,
   editMessageDiscord,
+  fetchChannelInfoDiscord,
+  fetchGuildInfoDiscord,
   fetchChannelPermissionsDiscord,
   fetchMessageDiscord,
   fetchReactionsDiscord,
@@ -51,7 +57,7 @@ export const discordMessagingActionRuntime = {
   unpinMessageDiscord,
 };
 
-export async function resolveDiscordReactionTargetChannelId(params: {
+async function resolveDiscordReactionTargetChannelId(params: {
   target: string;
   cfg: OpenClawConfig;
   accountId?: string;

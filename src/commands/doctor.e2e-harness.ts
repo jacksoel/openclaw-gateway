@@ -242,13 +242,15 @@ vi.mock("@clack/prompts", () => ({
   select,
 }));
 
-vi.mock("../agents/skills-status.js", () => ({
+vi.mock("../skills/discovery/status.js", () => ({
   buildWorkspaceSkillStatus: () => ({ skills: [] }),
 }));
 
 vi.mock("../plugins/loader.js", () => ({
+  getRuntimePluginRegistryForLoadOptions: () => null,
   isPluginRegistryLoadInFlight: () => false,
   loadOpenClawPlugins: () => createEmptyPluginRegistry(),
+  resolveCompatibleRuntimePluginRegistry: () => null,
   resolveRuntimePluginRegistry: () => null,
 }));
 
@@ -378,10 +380,6 @@ vi.mock("../channels/plugins/bootstrap-registry.js", () => ({
   getBootstrapChannelPlugin: vi.fn(() => undefined),
 }));
 
-vi.mock("./doctor-bundled-plugin-runtime-deps.js", () => ({
-  maybeRepairBundledPluginRuntimeDeps: vi.fn(async () => {}),
-}));
-
 vi.mock("../agents/auth-profiles.js", async () => {
   const actual = await vi.importActual<typeof import("../agents/auth-profiles.js")>(
     "../agents/auth-profiles.js",
@@ -503,7 +501,7 @@ export async function arrangeLegacyStateMigrationTest(): Promise<{
 
   detectLegacyStateMigrations.mockClear();
   runLegacyStateMigrations.mockClear();
-  detectLegacyStateMigrations.mockResolvedValueOnce(
+  detectLegacyStateMigrations.mockResolvedValue(
     createLegacyStateMigrationDetectionResult({
       hasLegacySessions: true,
       preview: ["- Legacy sessions detected"],

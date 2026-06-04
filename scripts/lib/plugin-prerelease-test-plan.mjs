@@ -5,7 +5,7 @@ export const PLUGIN_PRERELEASE_REQUIRED_SURFACES = Object.freeze([
   "bundled-lifecycle",
   "external-plugins",
   "update-no-op",
-  "channel-runtime-deps",
+  "installed-plugin-deps",
   "doctor-fix",
   "config-round-trip",
   "gateway-bootstrap",
@@ -15,6 +15,7 @@ export const PLUGIN_PRERELEASE_REQUIRED_SURFACES = Object.freeze([
   "npm-registry-plugin",
   "clawhub-registry-plugin",
   "resource-guardrails",
+  "plugin-gateway-rpc",
   "live-ish-availability",
 ]);
 
@@ -24,16 +25,26 @@ const pluginPrereleaseDockerLanes = Object.freeze([
     surfaces: ["package-artifact", "gateway-bootstrap", "status-diagnostics"],
   },
   {
+    lane: "npm-onboard-discord-channel-agent",
+    surfaces: [
+      "package-artifact",
+      "external-plugins",
+      "installed-plugin-deps",
+      "gateway-bootstrap",
+      "status-diagnostics",
+    ],
+  },
+  {
+    lane: "npm-onboard-slack-channel-agent",
+    surfaces: ["package-artifact", "gateway-bootstrap", "status-diagnostics"],
+  },
+  {
     lane: "doctor-switch",
     surfaces: ["package-artifact", "doctor-fix"],
   },
   {
     lane: "update-channel-switch",
-    surfaces: ["package-artifact", "channel-runtime-deps", "update-no-op"],
-  },
-  {
-    lane: "bundled-channel-deps-compat",
-    surfaces: ["package-artifact", "channel-runtime-deps", "gateway-bootstrap"],
+    surfaces: ["package-artifact", "installed-plugin-deps", "update-no-op"],
   },
   {
     lane: "plugins-offline",
@@ -58,6 +69,18 @@ const pluginPrereleaseDockerLanes = Object.freeze([
       "npm-registry-plugin",
       "clawhub-registry-plugin",
       "resource-guardrails",
+    ],
+  },
+  {
+    lane: "kitchen-sink-rpc",
+    surfaces: [
+      "external-plugins",
+      "sdk-compatibility",
+      "gateway-bootstrap",
+      "status-diagnostics",
+      "npm-registry-plugin",
+      "resource-guardrails",
+      "plugin-gateway-rpc",
     ],
   },
   {

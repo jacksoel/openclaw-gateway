@@ -25,7 +25,7 @@ type PersistedLifecycleSessionShape = Pick<
   "updatedAt" | "status" | "startedAt" | "endedAt" | "runtimeMs" | "abortedLastRun"
 >;
 
-export type GatewaySessionLifecycleSnapshot = Partial<LifecycleSessionShape>;
+type GatewaySessionLifecycleSnapshot = Partial<LifecycleSessionShape>;
 
 function isFiniteTimestamp(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
@@ -152,7 +152,7 @@ export async function persistGatewaySessionLifecycleEvent(params: {
     return;
   }
 
-  const sessionEntry = loadSessionEntry(params.sessionKey);
+  const sessionEntry = loadSessionEntry(params.sessionKey, { clone: false });
   if (!sessionEntry.entry) {
     return;
   }
@@ -160,6 +160,8 @@ export async function persistGatewaySessionLifecycleEvent(params: {
   await updateSessionStoreEntry({
     storePath: sessionEntry.storePath,
     sessionKey: sessionEntry.canonicalKey,
+    skipMaintenance: true,
+    takeCacheOwnership: true,
     update: async (entry) =>
       derivePersistedSessionLifecyclePatch({
         entry,
