@@ -52,7 +52,6 @@ function tryLoadBundledProviderPolicySurface(
       const mod = loadBundledPluginPublicArtifactModuleSync<Record<string, unknown>>({
         dirName: pluginId,
         artifactBasename,
-        installRuntimeDeps: false,
       });
       if (hasProviderPolicyHook(mod)) {
         providerPolicySurfaceByPluginId.set(cacheKey, mod);

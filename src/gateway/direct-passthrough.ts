@@ -1,20 +1,20 @@
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { resolveModelAsync } from "../agents/embedded-agent-runner/model.js";
+import { applyLocalNoAuthHeaderOverride, getApiKeyForModel } from "../agents/model-auth.js";
+import { createBoundaryAwareStreamFnForModel } from "../agents/provider-transport-stream.js";
+import { prepareModelForSimpleCompletion } from "../agents/simple-completion-transport.js";
+import { loadConfig } from "../config/config.js";
+import type { OpenClawConfig } from "../config/types.openclaw.js";
+import { completeSimple, streamSimple } from "../llm/stream.js";
 import type {
   Api,
   Context,
   Model,
   AssistantMessage,
   AssistantMessageEvent,
-  AssistantMessageEventStream,
-} from "@mariozechner/pi-ai";
-import * as piAi from "@mariozechner/pi-ai";
-import { applyLocalNoAuthHeaderOverride, getApiKeyForModel } from "../agents/model-auth.js";
-import { resolveModelAsync } from "../agents/embedded-agent-runner/model.js";
-import { createBoundaryAwareStreamFnForModel } from "../agents/provider-transport-stream.js";
-import { prepareModelForSimpleCompletion } from "../agents/simple-completion-transport.js";
-import { loadConfig } from "../config/config.js";
-import type { OpenClawConfig } from "../config/types.openclaw.js";
+  AssistantMessageEventStreamContract,
+} from "../llm/types.js";
 import { logWarn } from "../logger.js";
 import { sendJson, setSseHeaders, writeDone } from "./http-common.js";
 import { resolveDirectPassthroughModel } from "./http-utils.js";
@@ -272,10 +272,10 @@ function getStreamFn(
   model: Model<Api>,
   context: Context,
   options?: Record<string, unknown>,
-) => AssistantMessageEventStream {
+) => AssistantMessageEventStreamContract {
   const transportFn = createBoundaryAwareStreamFnForModel(model);
   if (transportFn) return transportFn as ReturnType<typeof getStreamFn>;
-  return piAi.streamSimple as ReturnType<typeof getStreamFn>;
+  return streamSimple as ReturnType<typeof getStreamFn>;
 }
 
 /**
@@ -367,7 +367,7 @@ export async function handleDirectChatCompletions(
   if (!shouldStream) {
     try {
       const context = buildDirectContext(messages);
-      const result: AssistantMessage = await piAi.completeSimple(model, context, {
+      const result: AssistantMessage = await completeSimple(model, context, {
         maxTokens:
           typeof payload.max_tokens === "number" ? payload.max_tokens : DEFAULT_DIRECT_MAX_TOKENS,
         temperature: typeof payload.temperature === "number" ? payload.temperature : undefined,

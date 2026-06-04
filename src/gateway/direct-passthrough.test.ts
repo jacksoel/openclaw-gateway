@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { AssistantMessage } from "@mariozechner/pi-ai";
-import * as piAi from "@mariozechner/pi-ai";
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import * as llmStream from "../llm/stream.js";
+import type { AssistantMessage } from "../llm/types.js";
 import { handleDirectChatCompletions } from "./direct-passthrough.js";
 
 // Mocks
@@ -25,7 +25,7 @@ vi.mock("../config/config.js", () => ({
   loadConfig: vi.fn(() => ({})),
 }));
 
-vi.mock("@mariozechner/pi-ai", () => ({
+vi.mock("../llm/stream.js", () => ({
   streamSimple: vi.fn(),
   completeSimple: vi.fn(),
 }));
@@ -131,7 +131,7 @@ describe("direct passthrough", () => {
       timestamp: Date.now(),
     } as AssistantMessage;
 
-    vi.mocked(piAi.completeSimple).mockResolvedValue(assistantMsg);
+    vi.mocked(llmStream.completeSimple).mockResolvedValue(assistantMsg);
 
     let code = 0;
     let body: unknown = null;
@@ -189,7 +189,7 @@ describe("direct passthrough", () => {
       timestamp: Date.now(),
     } as AssistantMessage;
 
-    vi.mocked(piAi.completeSimple).mockResolvedValue(assistantMsg);
+    vi.mocked(llmStream.completeSimple).mockResolvedValue(assistantMsg);
 
     let code = 0;
     let body: unknown = null;
@@ -226,7 +226,7 @@ describe("direct passthrough", () => {
       error: undefined,
     });
 
-    vi.mocked(piAi.completeSimple).mockResolvedValue({
+    vi.mocked(llmStream.completeSimple).mockResolvedValue({
       role: "assistant",
       content: [{ type: "toolcall", name: "noop", arguments: "{}", id: "1" }],
       stopReason: "stop",
