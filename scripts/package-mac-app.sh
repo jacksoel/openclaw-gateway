@@ -375,6 +375,19 @@ stop_packaged_app_if_running() {
 stop_packaged_app_if_running
 
 echo "🔏 Signing bundle (auto-selects signing identity if SIGN_IDENTITY is unset)"
-"$ROOT_DIR/scripts/codesign-mac-app.sh" "$APP_ROOT"
+# Sign in /tmp when possible: Desktop/iCloud paths often gain FinderInfo/fileprovider
+# xattrs that make codesign fail with "resource fork ... detritus not allowed".
+SIGN_APP_ROOT="$APP_ROOT"
+if [[ "$APP_ROOT" == "$HOME/Desktop/"* ]]; then
+  SIGN_APP_ROOT="${TMPDIR:-/tmp}/openclaw-sign-$$.app"
+  rm -rf "$SIGN_APP_ROOT"
+  ditto --norsrc "$APP_ROOT" "$SIGN_APP_ROOT"
+fi
+"$ROOT_DIR/scripts/codesign-mac-app.sh" "$SIGN_APP_ROOT"
+if [[ "$SIGN_APP_ROOT" != "$APP_ROOT" ]]; then
+  rm -rf "$APP_ROOT"
+  ditto --norsrc "$SIGN_APP_ROOT" "$APP_ROOT"
+  rm -rf "$SIGN_APP_ROOT"
+fi
 
 echo "✅ Bundle ready at $APP_ROOT"

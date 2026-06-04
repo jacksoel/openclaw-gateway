@@ -171,14 +171,39 @@ APP_ENTITLEMENTS="$ENT_TMP_APP"
 # clear extended attributes to avoid stale signatures
 xattr -cr "$APP_BUNDLE" 2>/dev/null || true
 
+# FinderInfo / fileprovider xattrs on bundle dirs break codesign on Sequoia+ Desktop builds.
+strip_codesign_detritus() {
+  local target="$1"
+  if [[ -z "$target" || ! -e "$target" ]]; then
+    return 0
+  fi
+  xattr -d com.apple.FinderInfo "$target" 2>/dev/null || true
+  xattr -d com.apple.fileprovider.fpfs#P "$target" 2>/dev/null || true
+  xattr -d com.apple.provenance "$target" 2>/dev/null || true
+  if [[ -d "$target" ]]; then
+    while IFS= read -r -d '' entry; do
+      xattr -d com.apple.FinderInfo "$entry" 2>/dev/null || true
+      xattr -d com.apple.fileprovider.fpfs#P "$entry" 2>/dev/null || true
+    done < <(find "$target" \( -xattrname com.apple.FinderInfo -o -xattrname 'com.apple.fileprovider.fpfs#P' \) -print0 2>/dev/null)
+  fi
+}
+
 sign_item() {
   local target="$1"
   local entitlements="$2"
+  local parent
+  parent="$(dirname "$target")"
+  strip_codesign_detritus "$parent"
+  strip_codesign_detritus "$target"
   codesign --force ${options_args+"${options_args[@]}"} "${timestamp_args[@]}" --entitlements "$entitlements" --sign "$IDENTITY" "$target"
 }
 
 sign_plain_item() {
   local target="$1"
+  local parent
+  parent="$(dirname "$target")"
+  strip_codesign_detritus "$parent"
+  strip_codesign_detritus "$target"
   codesign --force ${options_args+"${options_args[@]}"} "${timestamp_args[@]}" --sign "$IDENTITY" "$target"
 }
 
@@ -227,34 +252,31 @@ verify_team_ids() {
   fi
 }
 
-# Sign bundled helper binaries before signing the app bundle.
-MLX_TTS_HELPER="$APP_BUNDLE/Contents/MacOS/openclaw-mlx-tts"
-if [ -f "$MLX_TTS_HELPER" ]; then
-  echo "Signing MLX TTS helper"; sign_item "$MLX_TTS_HELPER" "$APP_ENTITLEMENTS"
-fi
-
-# Sign main binary
+# Sign main binary before helpers so signing helpers cannot leave FinderInfo on MacOS/.
 if [ -f "$APP_BUNDLE/Contents/MacOS/OpenClaw" ]; then
   echo "Signing main binary"; sign_item "$APP_BUNDLE/Contents/MacOS/OpenClaw" "$APP_ENTITLEMENTS"
+fi
+
+MLX_TTS_HELPER="$APP_BUNDLE/Contents/MacOS/openclaw-mlx-tts"
+if [ -f "$MLX_TTS_HELPER" ]; then
+  strip_codesign_detritus "$APP_BUNDLE/Contents/MacOS"
+  echo "Signing MLX TTS helper"; sign_item "$MLX_TTS_HELPER" "$APP_ENTITLEMENTS"
 fi
 
 # Sign Sparkle deeply if present
 SPARKLE="$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
 if [ -d "$SPARKLE" ]; then
+  strip_codesign_detritus "$SPARKLE"
+  strip_codesign_detritus "$SPARKLE/Versions/B"
   echo "Signing Sparkle framework and helpers"
-  find "$SPARKLE" -type f -print0 | while IFS= read -r -d '' f; do
-    if /usr/bin/file "$f" | /usr/bin/grep -q "Mach-O"; then
-      sign_plain_item "$f"
-    fi
-  done
-  sign_plain_item "$SPARKLE/Versions/B/Sparkle"
-  sign_plain_item "$SPARKLE/Versions/B/Autoupdate"
-  sign_plain_item "$SPARKLE/Versions/B/Updater.app/Contents/MacOS/Updater"
-  sign_plain_item "$SPARKLE/Versions/B/Updater.app"
   sign_plain_item "$SPARKLE/Versions/B/XPCServices/Downloader.xpc/Contents/MacOS/Downloader"
-  sign_plain_item "$SPARKLE/Versions/B/XPCServices/Downloader.xpc"
   sign_plain_item "$SPARKLE/Versions/B/XPCServices/Installer.xpc/Contents/MacOS/Installer"
+  sign_plain_item "$SPARKLE/Versions/B/Updater.app/Contents/MacOS/Updater"
+  sign_plain_item "$SPARKLE/Versions/B/XPCServices/Downloader.xpc"
   sign_plain_item "$SPARKLE/Versions/B/XPCServices/Installer.xpc"
+  sign_plain_item "$SPARKLE/Versions/B/Updater.app"
+  sign_plain_item "$SPARKLE/Versions/B/Autoupdate"
+  sign_plain_item "$SPARKLE/Versions/B/Sparkle"
   sign_plain_item "$SPARKLE/Versions/B"
   sign_plain_item "$SPARKLE"
 fi
@@ -267,6 +289,7 @@ if [ -d "$APP_BUNDLE/Contents/Frameworks" ]; then
 fi
 
 # Finally sign the bundle
+strip_codesign_detritus "$APP_BUNDLE"
 sign_item "$APP_BUNDLE" "$APP_ENTITLEMENTS"
 
 verify_team_ids

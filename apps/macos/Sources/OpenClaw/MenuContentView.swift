@@ -345,31 +345,6 @@ struct MenuContent: View {
         return ("Mac capabilities offline", .orange)
     }
 
-    private var macNodeStatus: (label: String, color: Color)? {
-        guard self.state.connectionMode != .unconfigured else { return nil }
-        guard case .connected = self.controlChannel.state else { return nil }
-
-        let deviceId = DeviceIdentityStore.loadOrCreate().deviceId
-        if let entry = self.nodesStore.nodes.first(where: { $0.nodeId == deviceId }) {
-            guard entry.isConnected else {
-                return ("Mac capabilities offline", .orange)
-            }
-            let commands = Set(entry.commands ?? [])
-            let missingRequiredCommands = [
-                OpenClawSystemCommand.notify.rawValue,
-                OpenClawSystemCommand.run.rawValue,
-                OpenClawSystemCommand.which.rawValue,
-            ].filter { !commands.contains($0) }
-            if !missingRequiredCommands.isEmpty {
-                return ("Mac capabilities incomplete", .orange)
-            }
-            return nil
-        }
-
-        guard !self.nodesStore.isLoading, !self.nodesStore.nodes.isEmpty else { return nil }
-        return ("Mac capabilities offline", .orange)
-    }
-
     private var healthStatus: (label: String, color: Color) {
         if let activity = self.activityStore.current {
             let color: Color = activity.role == .main ? .accentColor : .gray
