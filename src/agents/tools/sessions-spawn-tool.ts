@@ -32,6 +32,7 @@ import {
   SESSIONS_SPAWN_SUBAGENT_TOOL_DISPLAY_SUMMARY,
   SESSIONS_SPAWN_TOOL_DISPLAY_SUMMARY,
 } from "../tool-description-presets.js";
+import type { SpawnSubagentSandboxMode } from "../subagent-spawn.types.js";
 import type { AnyAgentTool } from "./common.js";
 import {
   jsonResult,
@@ -42,7 +43,7 @@ import {
 } from "./common.js";
 
 const SESSIONS_SPAWN_RUNTIMES = ["subagent", "acp"] as const;
-const SESSIONS_SPAWN_SANDBOX_MODES = ["inherit", "require"] as const;
+const SESSIONS_SPAWN_SANDBOX_MODES = ["inherit", "require", "direct-exec"] as const;
 // Keep the schema local to avoid a circular import through acp-spawn/openclaw-tools.
 const SESSIONS_SPAWN_ACP_STREAM_TARGETS = ["parent"] as const;
 const UNSUPPORTED_SESSIONS_SPAWN_PARAM_KEYS = [
@@ -216,6 +217,10 @@ function createSessionsSpawnToolSchema(params: {
         mountPath: Type.Optional(Type.String()),
       }),
     ),
+    // Colony Patch 3: direct-exec command args (bypasses agent loop, runs in sandbox).
+    execCommand: Type.Optional(
+      Type.Array(Type.String(), { minItems: 1, maxItems: 32 }),
+    ),
     ...(params.acpAvailable
       ? {
           resumeSessionId: Type.Optional(
@@ -303,7 +308,10 @@ export function createSessionsSpawnTool(
       const cleanup =
         params.cleanup === "keep" || params.cleanup === "delete" ? params.cleanup : "keep";
       const expectsCompletionMessage = params.expectsCompletionMessage !== false;
-      const sandbox = params.sandbox === "require" ? "require" : "inherit";
+      const sandbox: SpawnSubagentSandboxMode =
+        params.sandbox === "require" || params.sandbox === "direct-exec"
+          ? params.sandbox
+          : "inherit";
       const context =
         params.context === "fork" || params.context === "isolated" ? params.context : undefined;
       const streamTo = runtime === "acp" && params.streamTo === "parent" ? "parent" : undefined;
@@ -358,6 +366,25 @@ export function createSessionsSpawnTool(
           }>)
         : undefined;
 
+      // Colony Patch 3: extract and validate execCommand for direct-exec.
+      const execCommand = Array.isArray(params.execCommand)
+        && params.execCommand.length > 0
+        && params.execCommand.every((s: unknown) => typeof s === "string")
+        ? (params.execCommand as string[])
+        : undefined;
+      if (execCommand && sandbox !== "direct-exec") {
+        return jsonResult({
+          status: "error",
+          error: "execCommand is only valid with sandbox=direct-exec",
+        });
+      }
+      if (!execCommand && sandbox === "direct-exec") {
+        return jsonResult({
+          status: "error",
+          error: "sandbox=direct-exec requires a non-empty execCommand array",
+        });
+      }
+
       if (runtime === "acp") {
         const { isSpawnAcpAcceptedResult, spawnAcpDirect } = await loadAcpSpawnModule();
         const acpAttachments = resolveAcpSessionsSpawnImageAttachments({
@@ -383,7 +410,9 @@ export function createSessionsSpawnTool(
             cwd,
             mode: mode === "run" || mode === "session" ? mode : undefined,
             thread,
-            sandbox,
+            // Colony Patch 3: ACP doesn't support direct-exec; cast is safe because
+            // execCommand+direct-exec is rejected before reaching this branch for ACP.
+            sandbox: sandbox as "inherit" | "require" | undefined,
             streamTo,
             attachments: acpAttachments?.attachments,
           },
@@ -483,6 +512,8 @@ export function createSessionsSpawnTool(
             params.attachAs && typeof params.attachAs === "object"
               ? readStringParam(params.attachAs as Record<string, unknown>, "mountPath")
               : undefined,
+          // Colony Patch 3: pass execCommand for direct-exec sandbox mode.
+          execCommand,
         },
         {
           agentSessionKey: opts?.agentSessionKey,
